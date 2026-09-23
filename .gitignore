@@ -1,0 +1,16 @@
+# virtualenv
+.venv/
+
+# model weights (647 MB) - fetched on demand by scripts/
+.hf/
+
+__pycache__/
+*.py[cod]
+
+# scratch connectivity probes, not part of the benchmark
+scripts/nettest*.py
+scripts/probe.py
+scripts/smoke.py
+
+# publication drafts with editorial notes - local only
+publish/

@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "timestamp": "2026-09-22T13:45:37.834094+00:00",
+    "ctx": 256,
+    "n_questions": 10,
+    "steady_s": 45,
+    "soak_s": 60,
+    "idles": [
+      15,
+      30,
+      60,
+      120,
+      240,
+      480
+    ],
+    "threads": 24,
+    "torch": "2.14.0+cpu",
+    "device": "cpu",
+    "dtype": "torch.float32"
+  },
+  "summary": {
+    "steady_min": 2331.19,
+    "steady_max": 2998.53,
+    "steady_median": 2458.66,
+    "steady_spread_x": 1.286,
+    "burst_min": 1171.66,
+    "burst_max": 2577.0,
+    "burst_spread_x": 2.199,
+    "idle_correlates": false
+  },
+  "rows": [
+    {
+      "idle_s": 15,
+      "threads": 24,
+      "p50_ms": 2628.7,
+      "p95_ms": 3909.7,
+      "min_ms": 2313.37,
+      "mean_ms": 3032.85,
+      "reps": 16,
+      "reps_in_tail": 8,
+      "window_s": 46.0,
+      "burst_p50_ms": 2577.0,
+      "turbo_ratio": 1.02,
+      "input_tokens": 2616
+    },
+    {
+      "idle_s": 30,
+      "threads": 24,
+      "p50_ms": 2333.42,
+      "p95_ms": 2559.99,
+      "min_ms": 2265.87,
+      "mean_ms": 2353.7,
+      "reps": 20,
+      "reps_in_tail": 10,
+      "window_s": 45.6,
+      "burst_p50_ms": 2297.34,
+      "turbo_ratio": 1.016,
+      "input_tokens": 2616
+    },
+    {
+      "idle_s": 60,
+      "threads": 24,
+      "p50_ms": 2527.85,
+      "p95_ms": 2894.17,
+      "min_ms": 2017.88,
+      "mean_ms": 2486.18,
+      "reps": 21,
+      "reps_in_tail": 10,
+      "window_s": 47.3,
+      "burst_p50_ms": 1955.55,
+      "turbo_ratio": 1.293,
+      "input_tokens": 2616
+    },
+    {
+      "idle_s": 120,
+      "threads": 24,
+      "p50_ms": 2389.47,
+      "p95_ms": 2637.75,
+      "min_ms": 2266.43,
+      "mean_ms": 2398.47,
+      "reps": 19,
+      "reps_in_tail": 10,
+      "window_s": 46.2,
+      "burst_p50_ms": 2512.34,
+      "turbo_ratio": 0.951,
+      "input_tokens": 2616
+    },
+    {
+      "idle_s": 240,
+      "threads": 24,
+      "p50_ms": 2331.19,
+      "p95_ms": 3976.69,
+      "min_ms": 2238.91,
+      "mean_ms": 2703.26,
+      "reps": 28,
+      "reps_in_tail": 9,
+      "window_s": 46.7,
+      "burst_p50_ms": 1171.66,
+      "turbo_ratio": 1.99,
+      "input_tokens": 2616
+    },
+    {
+      "idle_s": 480,
+      "threads": 24,
+      "p50_ms": 2998.53,
+      "p95_ms": 3110.02,
+      "min_ms": 2927.18,
+      "mean_ms": 3012.83,
+      "reps": 24,
+      "reps_in_tail": 8,
+      "window_s": 45.8,
+      "burst_p50_ms": 1208.37,
+      "turbo_ratio": 2.481,
+      "input_tokens": 2616
+    }
+  ]
+}
