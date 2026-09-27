@@ -12,12 +12,13 @@ probabilities in one forward pass, no text generation. The number everybody repe
 That number is from a **Tesla T4 GPU**. The whole point of a 322M model is that you
 should not need a GPU — but there is no CPU latency table anywhere in the model card.
 
-The repo does contain one CPU figure, in
-`research/results/cpu_51_language_sweep.json`: `1392.5 ms_per_case` at 4 threads. It is
-not in the model card, and a "case" is not defined anywhere a user would look (reading
-`research/scripts/bench_local.py`, it is one `(state, questions)` pair, with a varying
-number of questions per case). The 32.8 ms and the 1392.5 ms cannot be reconciled from
-public information.
+The repo does contain CPU timings, in `research/results/cpu_51_language_sweep.json`
+(4 threads, `laya` 0.2.0), but none of them is in the model card. The one per-case figure,
+`1392.5 ms_per_case`, is for the **English** checkpoint (part B of
+`research/scripts/bench_local.py`: 400 cases, 2,000 decisions). For `laya-multilingual` the
+file only records wall time per language in a MASSIVE intent sweep — 7.7–10.3 s per 100
+cases, each a short utterance and one 20-option question — which says little about the
+longer states and multi-question calls measured here.
 
 This repo measures the whole surface with one method so the numbers are comparable.
 
@@ -26,20 +27,30 @@ This repo measures the whole surface with one method so the numbers are comparab
 On an Intel i9-14900HX (24 cores / 32 threads, 32 GB), `laya-multilingual` in FP32 via
 the official `laya` package, measured in **steady state** on Chinese input:
 
-| state length | 1 question | 10 questions | 50 questions |
+| state | 1 question | 10 questions | 50 questions |
 |---|---|---|---|
-| 71 tokens | 50 ms | 401 ms | 4,105 ms |
-| 261 tokens | 307 ms | 2,150 ms | 9,103 ms |
-| 927 tokens | 1,315 ms | 10,199 ms | 40,131 ms |
+| 37 tokens | 50 ms | 401 ms | 4,105 ms |
+| 227 tokens | 307 ms | 2,150 ms | 9,103 ms |
+| 893 tokens | 1,315 ms | 10,199 ms | 40,131 ms |
 
-Against the published T4 table (32.8 / 72.3 / 337 ms), at a 261-token state that is
-**9.4x / 30x / 27x** slower. At a 927-token state — still inside the model's 1024-token
-window — a single question costs **1.3 seconds**.
+The state is not the whole input. Each question adds its own 33–37-token head
+(instruction, options, special tokens) and is encoded together with the full state as a
+separate sequence, so a 227-token state becomes a ~261-token sequence per question.
+
+Against the published T4 table (32.8 / 72.3 / 337 ms), at a 227-token state that is
+**9.4x / 30x / 27x** slower. At an 893-token state — 927 tokens per question, still inside
+the model's 1024-token window — a single question costs **1.3 seconds**.
 
 A realistic CPU call is **0.3–2 seconds**, not 33 milliseconds.
 
 Single figures carry a **+/-13%** error bar (see *Known limitations*); the ratios between
 cells are tighter.
+
+> **Correction, 2026-09-27.** Earlier versions labeled the rows above 71 / 261 / 927
+> tokens. Those are tokens per question (state plus question head), not state length; the
+> latencies are unchanged. Earlier versions also quoted upstream's `1392.5 ms_per_case`
+> without saying it is for the English checkpoint. The first was raised in the
+> [HF discussion](https://huggingface.co/convaiinnovations/laya/discussions/12).
 
 ## Four findings
 
@@ -53,31 +64,34 @@ On CPU, cost per question is essentially flat:
 
 | state | 1 q | 5 q | 10 q | 25 q | 50 q |
 |---|---|---|---|---|---|
-| 261 tokens | 307 ms/q | 244 ms/q | 215 ms/q | 200 ms/q | 182 ms/q |
-| 551 tokens | 581 ms/q | 532 ms/q | 530 ms/q | 498 ms/q | 531 ms/q |
+| 227 tokens | 307 ms/q | 244 ms/q | 215 ms/q | 200 ms/q | 182 ms/q |
+| 517 tokens | 581 ms/q | 532 ms/q | 530 ms/q | 498 ms/q | 531 ms/q |
 
 Batching buys roughly 20–30% going from 1 to 10 questions and nothing after that. The
 reason is structural: a GPU at batch 1 is mostly idle, so batching fills it; a CPU is
 already saturated.
 
 This matters for design. `laya/agent.py` builds **one sequence per question** — the state
-is re-encoded for every question — so compute scales as `questions x sequence_length`.
-On GPU that is hidden by parallelism. On CPU you pay all of it.
+is re-encoded for every question, alongside that question's own head — so compute scales
+as `questions x sequence_length`. On GPU that is hidden by parallelism. On CPU you pay all
+of it. The head is not negligible either: at a 37-token state it is almost half of every
+sequence, so even a very short state does not make questions cheap.
 
 ### 2. Latency is roughly linear in context, and context is the dominant term
 
-At 10 questions: 401 ms (71 tok) -> 1,094 (150) -> 2,150 (261) -> 5,297 (551) ->
-10,199 (927). Per total token processed this drifts from 0.56 to 1.10 ms, consistent with
-attention's quadratic term starting to bite at the long end.
+At 10 questions, by state length: 401 ms (37 tok) -> 1,094 (116) -> 2,150 (227) ->
+5,297 (517) -> 10,199 (893). Per token actually processed (state plus head, summed over
+the 10 sequences) this drifts from 0.56 to 1.10 ms, consistent with attention's quadratic
+term starting to bite at the long end.
 
-Practically: **keep the state short**. Going from a 927-token state to a 261-token state
+Practically: **keep the state short**. Going from an 893-token state to a 227-token state
 is a 4.7x speedup at the same question count — far more leverage than any batching.
 
 ### 3. A short benchmark measures turbo boost, not your machine
 
 This is the one that surprised us, and it generalises beyond Laya.
 
-Running one fixed config (261-token state, 10 questions, 24 threads) continuously from an
+Running one fixed config (227-token state, 10 questions, 24 threads) continuously from an
 idle machine, logging every call with no warmup discarded:
 
 | elapsed | median latency |
@@ -183,8 +197,10 @@ Chinese, because you are paying for 1.16x the tokens.**
 - CUDA runs call `torch.cuda.synchronize()` around each timed call.
 - Steady-state mode: run back to back for >= 60 s and >= 3 calls, report the median of
   the last half of the window.
-- Sequence lengths are **measured**, not intended: read back from
-  `result["usage"]["input_tokens"]`.
+- Token counts are **measured**, not intended. `result["usage"]["input_tokens"]` (stored as
+  `input_tokens` in the JSON) is the total over every question's sequence in the call; the
+  state lengths quoted here are that figure at n=1 minus the first question's 34-token head
+  (cross-checked by re-tokenizing the states).
 - Questions cycle through all three primitives (`noul`, `choice`, `score`), matching the
   mix in upstream's own benchmark script.
 - Input is Chinese, because upstream publishes no zh latency data and CJK tokenization
@@ -205,7 +221,7 @@ Chinese, because you are paying for 1.16x the tokens.**
 - Figures measured with the short-burst method earlier in this study ranged over 1.9x for
   one config. Those runs are kept in `results/bench_cpu_zh.json` as an illustration of
   finding 3, and none of them are quoted as results.
-- The `927 tok x 5 q` cell (8,406 ms, 1,681 ms/q) is out of line with its neighbours
+- The `893-token state x 5 q` cell (8,406 ms, 1,681 ms/q) is out of line with its neighbours
   (n=10 gives 1,020 ms/q) and only got 9 reps. Probably noise; not yet re-run.
 - The 32-thread cell is excluded (see finding 4).
 - FP32 only. The official package hard-codes FP32 on CPU and disables autocast there
